@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://b6c5d0n83byqn"]
+
+[ext_resource type="PackedScene" uid="uid://boryy72jg1gb4" path="res://assets/vertex-pipeline.gltf" id="1_02lvh"]
+[ext_resource type="Material" uid="uid://vcqat5560ivr" path="res://shaders/uber_mat.tres" id="1_u7sjj"]
+
+[node name="Node3D" type="Node3D"]
+
+[node name="vertex-pipeline" parent="." instance=ExtResource("1_02lvh")]
+
+[node name="Cube" parent="vertex-pipeline" index="0"]
+transform = Transform3D(0.853751, 0, 0.520682, 0, 1, 0, -0.520682, 0, 0.853751, 0, 0, 0)
+surface_material_override/0 = ExtResource("1_u7sjj")
+
+[editable path="vertex-pipeline"]
