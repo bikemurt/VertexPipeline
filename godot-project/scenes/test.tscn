@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3 uid="uid://dms7wd707asc1"]
+
+[ext_resource type="PackedScene" uid="uid://bg1aryq84j0en" path="res://assets/test.gltf" id="1_kc44i"]
+[ext_resource type="Material" uid="uid://diprk4ctt82l5" path="res://shaders/uber.material" id="2_8r03q"]
+
+[node name="Node3D" type="Node3D"]
+
+[node name="test" parent="." instance=ExtResource("1_kc44i")]
+
+[node name="Cube" parent="test" index="0"]
+surface_material_override/0 = ExtResource("2_8r03q")
+
+[editable path="test"]

@@ -1,0 +1,50 @@
+
+class UpdateGeoPalette(bpy.types.Operator):
+    """Update Geo Palette"""
+    bl_idname = "object.v_update_geo_palette"
+    bl_label = "Update Geo Palette"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        # Make the operator available in all contexts by returning True
+        return True  # You can add custom conditions if needed
+    
+    def set_geo_color(self, obj, mod_name, name, palette_color):
+        mod = obj.modifiers[mod_name]
+        identifier = mod.node_group.interface.items_tree[name].identifier
+        mod[identifier][0] = srgb_to_linear(palette_color.r)
+        mod[identifier][1] = srgb_to_linear(palette_color.g)
+        mod[identifier][2] = srgb_to_linear(palette_color.b)
+    
+    def execute(self, context):
+        scene = context.scene
+        props = scene.VPipelineProps
+        
+        obj = context.active_object
+        if obj:
+            mod_name = ""
+            
+            cc = bpy.data.node_groups['ColorConverter']
+            found = False
+            for mod in obj.modifiers:
+                if mod.type == 'NODES':
+                    if mod.node_group == cc:
+                        mod_name = mod.name
+                        print(mod_name)
+                
+            c_p = bpy.data.palettes.get(props.color_name)
+            if c_p:
+                self.set_geo_color(obj, mod_name, "Color0", c_p.colors[0].color)
+                self.set_geo_color(obj, mod_name, "Color1", c_p.colors[1].color)
+                self.set_geo_color(obj, mod_name, "Color2", c_p.colors[2].color)
+                self.set_geo_color(obj, mod_name, "Color3", c_p.colors[3].color)
+                
+            m_p = bpy.data.palettes.get(props.metal_name)
+            if m_p:
+                self.set_geo_color(obj, mod_name, "Metal0", m_p.colors[0].color)
+                self.set_geo_color(obj, mod_name, "Metal1", m_p.colors[1].color)
+                self.set_geo_color(obj, mod_name, "Metal2", m_p.colors[2].color)
+                self.set_geo_color(obj, mod_name, "Metal3", m_p.colors[3].color)
+            
+        return {'FINISHED'}

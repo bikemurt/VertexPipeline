@@ -38,7 +38,7 @@ class VPipelineProperties(PropertyGroup):
     naming_UI : BoolProperty(name = "Setup", default = False)
     paint_UI : BoolProperty(name = "Paint", default = False)
     metal_colors_UI : BoolProperty(name = "Metal Colors", default = False)
-    palette_UI : BoolProperty(name = "Palettes", default = False)
+    palette_UI : BoolProperty(name = "Apply", default = False)
     
     active_palette : StringProperty(name = "Active Palette", default = "")
 
@@ -162,11 +162,24 @@ class VPipelinePanel(bpy.types.Panel):
             
             box = layout.box()
             if self.dropdown(box, props, "palette_UI"):
+                
+                #row = box.row()
+                #row.operator("object.v_update_geo_palette", text="Update Geonodes Palette")
+                
                 row = box.row()
-                row.operator("object.v_update_geo_palette", text="Update Geonodes Palette")
+                row.operator("object.v_map_uvs", text="Map UVs").map=True
+                
+                row = box.row()
+                row.operator("object.v_map_uvs", text="Restore UVs").map=False
                 
                 row = box.row()
                 row.operator("object.v_print_palette", text="Print Palettes")
+            
+                row = box.row()
+                row.operator("object.v_prep_export", text="Prep for Export").reset=False
+            
+                row = box.row()
+                row.operator("object.v_prep_export", text="Restore Geo Nodes/Uber Mat").reset=True
             
                 ts = context.tool_settings
                 if ts.vertex_paint.palette:
@@ -196,8 +209,12 @@ def linear_to_srgb(c):
         srgb = 1.055 * math.pow(c, 1.0 / 2.4) - 0.055
     return srgb
 
+def color_match(col1, col2, tol=0.001):
+    def vector(col):
+        return Vector([max(0, min(1, c)) for c in col])
 
-
+    d = vector(col1) - vector(col2)
+    return d.length <= tol
 
 ### OPERATORS
 
@@ -272,65 +289,6 @@ class SetMetalColor(bpy.types.Operator):
             
         return {'FINISHED'}
 
-
-class UpdateGeoPalette(bpy.types.Operator):
-    """Update Geo Palette"""
-    bl_idname = "object.v_update_geo_palette"
-    bl_label = "Update Geo Palette"
-    bl_options = {'REGISTER', 'UNDO'}
-    
-    @classmethod
-    def poll(cls, context):
-        # Make the operator available in all contexts by returning True
-        return True  # You can add custom conditions if needed
-    
-    def set_geo_color(self, obj, mod_name, name, palette_color):
-        mod = obj.modifiers[mod_name]
-        identifier = mod.node_group.interface.items_tree[name].identifier
-        mod[identifier][0] = srgb_to_linear(palette_color.r)
-        mod[identifier][1] = srgb_to_linear(palette_color.g)
-        mod[identifier][2] = srgb_to_linear(palette_color.b)
-    
-    def execute(self, context):
-        scene = context.scene
-        props = scene.VPipelineProps
-        
-        obj = context.active_object
-        if obj:
-            mod_name = ""
-            
-            cc = bpy.data.node_groups['ColorConverter']
-            found = False
-            for mod in obj.modifiers:
-                if mod.type == 'NODES':
-                    if mod.node_group == cc:
-                        mod_name = mod.name
-                        print(mod_name)
-                
-            c_p = bpy.data.palettes.get(props.color_name)
-            if c_p:
-                self.set_geo_color(obj, mod_name, "Color0", c_p.colors[0].color)
-                self.set_geo_color(obj, mod_name, "Color1", c_p.colors[1].color)
-                self.set_geo_color(obj, mod_name, "Color2", c_p.colors[2].color)
-                self.set_geo_color(obj, mod_name, "Color3", c_p.colors[3].color)
-                
-            m_p = bpy.data.palettes.get(props.metal_name)
-            if m_p:
-                self.set_geo_color(obj, mod_name, "Metal0", m_p.colors[0].color)
-                self.set_geo_color(obj, mod_name, "Metal1", m_p.colors[1].color)
-                self.set_geo_color(obj, mod_name, "Metal2", m_p.colors[2].color)
-                self.set_geo_color(obj, mod_name, "Metal3", m_p.colors[3].color)
-            
-        return {'FINISHED'}
-
-
-def color_match(col1, col2, tol=0.001):
-    def vector(col):
-        return Vector([max(0, min(1, c)) for c in col])
-
-    d = vector(col1) - vector(col2)
-    return d.length <= tol
-
 class SelectCurrentColor(bpy.types.Operator):
     """Select Current Color"""
     bl_idname = "object.v_select_current_color"
@@ -356,7 +314,7 @@ class SelectCurrentColor(bpy.types.Operator):
             v_name = props.color_name
         if self.index == 1:
             v_name = props.metal_name
-            
+        
         bpy.ops.object.mode_set(mode='OBJECT')
         
         color_layer = mesh.color_attributes.get(v_name)
@@ -367,6 +325,7 @@ class SelectCurrentColor(bpy.types.Operator):
             clr = Color((att.color_srgb[0], att.color_srgb[1], att.color_srgb[2]))
             
             if color_match(clr, target_color, 0.01):
+                print(target_color)
                 vi = mesh.loops[i].vertex_index
                 mesh.vertices[vi].select = True
                 
@@ -396,23 +355,40 @@ class PrintPalette(bpy.types.Operator):
         if obj:
             c_p = bpy.data.palettes.get(props.color_name)
             if c_p:
-                print("COLOR")
-                for i in range(4):
-                    c = c_p.colors[i].color
+                print("const vec3 colors[] = {")
+                
+                i = 0
+                for clr in c_p.colors:
+                    c = clr.color
                     r = round(srgb_to_linear(c.r), 6)
                     g = round(srgb_to_linear(c.g), 6)
                     b = round(srgb_to_linear(c.b), 6)
-                    print(f"vec3({r}, {g}, {b}),")
+                    
+                    comma = ","
+                    if i == len(c_p.colors)-1: comma = ""
+                    
+                    print(f"vec3({r}, {g}, {b})" + comma)
+                    i += 1
+                
+                print("};")
             
-            print("METAL")
             m_p = bpy.data.palettes.get(props.metal_name)
             if m_p:
-                for i in range(4):
-                    c = m_p.colors[i].color
-                    r = round((c.r), 6)
-                    g = round((c.g), 6)
-                    b = round((c.b), 6)
-                    print(f"vec3({r}, {g}, {b}),")
+                print("const vec3 metals[] = {")
+                i = 0
+                for clr in m_p.colors:
+                    c = clr.color
+                    r = round(srgb_to_linear(c.r), 6)
+                    g = round(srgb_to_linear(c.g), 6)
+                    b = round(srgb_to_linear(c.b), 6)
+                    
+                    comma = ","
+                    if i == len(c_p.colors)-1: comma = ""
+                    
+                    print(f"vec3({r}, {g}, {b})" + comma)
+                    i += 1
+                
+                print("};")
             
             
         return {'FINISHED'}
@@ -495,11 +471,8 @@ class Setup(bpy.types.Operator):
                 mod = obj.modifiers.new('ColorConverter', type='NODES')
                 mod.node_group = cc
                 
-                c_id = mod.node_group.interface.items_tree["ColorName"].identifier
-                mod[c_id] = props.color_name
-                
-                m_id = mod.node_group.interface.items_tree["MetalName"].identifier
-                mod[m_id] = props.metal_name
+                c_id = mod.node_group.interface.items_tree["OutColor"].identifier
+                mod[c_id] = "Color"
             
         return {'FINISHED'}
 
@@ -525,9 +498,127 @@ class VPaint(bpy.types.Operator):
         
         return {'FINISHED'}
 
+
+
+class MapUVs(bpy.types.Operator):
+    """Map UVs"""
+    bl_idname = "object.v_map_uvs"
+    bl_label = "Map UVs"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    map: BoolProperty(name = "Map", default=True)
+    
+    @classmethod
+    def poll(cls, context):
+        # Make the operator available in all contexts by returning True
+        return True  # You can add custom conditions if needed
+    
+    def shift_uv(self, mesh, attribute, palette, axis=0):
+        uv_layer = mesh.uv_layers.active.data
+        shift = 0
+        for palette_clr in palette.colors:
+            target_color = palette_clr.color
+            
+            i = 0
+            for att in attribute.data:
+                clr = Color((att.color_srgb[0], att.color_srgb[1], att.color_srgb[2]))
+                
+                if color_match(clr, target_color, 0.01):
+                    vi = mesh.loops[i].vertex_index
+                    uv = uv_layer[i].uv
+                    uv_normx = uv.x - math.floor(uv.x)
+                    uv_normy = uv.y - math.floor(uv.y)
+                    
+                    if self.map:
+                        if axis == 0:
+                            uv_layer[i].uv.x = uv_normx + shift
+                        elif axis == 1:
+                            uv_layer[i].uv.y = uv_normy + shift
+                    else:
+                        if axis == 0:
+                            uv_layer[i].uv.x = uv_normx
+                        elif axis == 1:
+                            uv_layer[i].uv.y = uv_normy
+                
+                i += 1
+                
+            shift += 1
+    
+    def execute(self, context):
+        scene = context.scene
+        props = scene.VPipelineProps
+        
+        obj = context.active_object
+        if obj:
+            mesh = obj.data
+        
+            mesh.uv_layers.active = mesh.uv_layers['UVMap']
+            
+            color_layer = mesh.color_attributes.get(props.color_name)
+            color_palette = bpy.data.palettes.get(props.color_name)
+            
+            self.shift_uv(mesh, color_layer, color_palette, 0)
+            
+            metal_layer = mesh.color_attributes.get(props.metal_name)
+            metal_palette = bpy.data.palettes.get(props.metal_name)
+            
+            self.shift_uv(mesh, metal_layer, metal_palette, 1)
+                    
+        return {'FINISHED'}
+
+
+class PrepExport(bpy.types.Operator):
+    """Prep for Export"""
+    bl_idname = "object.v_prep_export"
+    bl_label = "Prep for Export"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    reset: BoolProperty(name = "Reset", default=False)
+    
+    @classmethod
+    def poll(cls, context):
+        # Make the operator available in all contexts by returning True
+        return True  # You can add custom conditions if needed
+    
+    def execute(self, context):
+        scene = context.scene
+        props = scene.VPipelineProps
+        
+        obj = context.active_object
+        
+        if obj:
+            if self.reset:
+                # materials
+                found = False
+                for mat in obj.data.materials:
+                    if mat.name == "UberShader": found = True
+                if not found:
+                    uber_mat = bpy.data.materials.get("UberShader")
+                    obj.data.materials.append(uber_mat)
+                
+                # geonodes
+                mfound = False
+                for mod in obj.modifiers:
+                    if mod.name == "ColorConverter": mfound = True
+                
+                if not mfound:
+                    mod = obj.modifiers.new('ColorConverter', type='NODES')
+                    mod.node_group = bpy.data.node_groups['ColorConverter']
+                
+                    c_id = mod.node_group.interface.items_tree["OutColor"].identifier
+                    mod[c_id] = "Color"
+                    mod["OutColor"] = "Color"
+            else:
+                bpy.ops.object.modifier_apply(modifier="ColorConverter")
+                obj.data.materials.clear()
+        
+        return {'FINISHED'}
+
+
 ###
 
-classes = [VPipelineProperties, VPipelinePanel, SetActive, SetMetalColor, UpdateGeoPalette, SelectCurrentColor, PrintPalette, Setup, VPaint]
+classes = [VPipelineProperties, VPipelinePanel, SetActive, SetMetalColor,
+    SelectCurrentColor, PrintPalette, Setup, VPaint, MapUVs, PrepExport]
 
 def register():
     for cls in classes:
