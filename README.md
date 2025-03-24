@@ -2,6 +2,9 @@
 
 ![Untitled](https://github.com/user-attachments/assets/d1803b99-7d08-4285-ae49-94d9a86acac1)
 
+https://www.youtube.com/watch?v=5iRhN30IxlM
+https://www.youtube.com/watch?v=Zxxk9qteePc
+
 To do:
 - include pipeline support for emission textures and decals
 - add a 3rd UV channel and map to `CUSTOM0`. xy corresponds to `UV3`
