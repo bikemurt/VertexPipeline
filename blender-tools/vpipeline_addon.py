@@ -2,31 +2,33 @@ bl_info = {
     "name": "V Pipeline",
     "description": "Vertex based pipeline",
     "author": "Michael Jared",
-    "version": (0,1),
-    "location": "View3D > Properties > Godot Pipeline",
+    "version": (0, 2),
+    "location": "View3D > Properties > V Pipeline",
     "doc_url": "https://www.michaeljared.ca",
-    "blender": (2, 80, 0),
+    "tracker_url": "https://github.com/bikemurt/VertexPipeline/issues",
+    "blender": (4, 4, 0),
     "category": "Generic"
 }
 
 import bpy, math
 from mathutils import Vector, Color
 from bpy.types import (
-            Operator,
-            PropertyGroup, 
-            Panel,
-            UIList,
-            Object
-        )
+    Object,
+    Operator,
+    Panel,
+    PropertyGroup,
+    Scene,
+    UIList
+)
 from bpy.props import (
-            IntProperty,
-            EnumProperty,
-            BoolProperty,
-            FloatProperty,
-            StringProperty,
-            PointerProperty,
-            CollectionProperty
-        )
+    IntProperty,
+    EnumProperty,
+    BoolProperty,
+    FloatProperty,
+    StringProperty,
+    PointerProperty,
+    CollectionProperty
+)
     
 ### PROPS
 
@@ -44,7 +46,7 @@ class VPipelineProperties(PropertyGroup):
 
 ### PANEL
 
-class VPipelinePanel(bpy.types.Panel):
+class VPipelinePanel(Panel):
     bl_idname = "OBJECT_PT_v_pipeline"
     bl_label = "V Pipeline"
     bl_space_type = 'VIEW_3D'
@@ -131,7 +133,7 @@ class VPipelinePanel(bpy.types.Panel):
                 row.operator("object.v_set_active", icon='NONE', text="Metal").active_name = 1
                 
                 row = box.row()
-                row.operator("object.v_paint", text="Paint Vertex Colors", icon="BRUSH_PAINT_SELECT")
+                row.operator("object.v_paint", text="Paint Vertex Colors", icon="VPAINT_HLT")
                 
                 row = box.row()
                 row.prop(context.tool_settings.vertex_paint.brush, "color", text="Active Color")
@@ -154,7 +156,7 @@ class VPipelinePanel(bpy.types.Panel):
                     index = 0
                 elif props.active_palette == props.metal_name:
                     s = "Metal"
-                    index = 0
+                    index = 1
                 
                 if s != "":
                     row = box.row()
@@ -192,8 +194,7 @@ class VPipelinePanel(bpy.types.Panel):
         else:
             row = layout.row()
             row.label(text="Setup incomplete.")
-        
-        
+
 ### HELPER FUNCTIONS
 
 def srgb_to_linear(c):
@@ -218,7 +219,7 @@ def color_match(col1, col2, tol=0.001):
 
 ### OPERATORS
 
-class SetActive(bpy.types.Operator):
+class SetActive(Operator):
     """Set Active"""
     bl_idname = "object.v_set_active"
     bl_label = "Set Active"
@@ -262,7 +263,7 @@ class SetActive(bpy.types.Operator):
         
         return {'FINISHED'}
 
-class SetMetalColor(bpy.types.Operator):
+class SetMetalColor(Operator):
     """Set Metal Color"""
     bl_idname = "object.v_set_metal_color"
     bl_label = "Set Metal Color"
@@ -289,7 +290,7 @@ class SetMetalColor(bpy.types.Operator):
             
         return {'FINISHED'}
 
-class SelectCurrentColor(bpy.types.Operator):
+class SelectCurrentColor(Operator):
     """Select Current Color"""
     bl_idname = "object.v_select_current_color"
     bl_label = "Select Current Color"
@@ -335,8 +336,7 @@ class SelectCurrentColor(bpy.types.Operator):
         
         return {'FINISHED'}
 
-
-class PrintPalette(bpy.types.Operator):
+class PrintPalette(Operator):
     """Print Palette"""
     bl_idname = "object.v_print_palette"
     bl_label = "Print Palette"
@@ -393,7 +393,7 @@ class PrintPalette(bpy.types.Operator):
             
         return {'FINISHED'}
 
-class Setup(bpy.types.Operator):
+class Setup(Operator):
     """Setup"""
     bl_idname = "object.v_setup"
     bl_label = "Setup"
@@ -476,7 +476,7 @@ class Setup(bpy.types.Operator):
             
         return {'FINISHED'}
 
-class VPaint(bpy.types.Operator):
+class VPaint(Operator):
     """V Paint"""
     bl_idname = "object.v_paint"
     bl_label = "V Paint"
@@ -498,9 +498,7 @@ class VPaint(bpy.types.Operator):
         
         return {'FINISHED'}
 
-
-
-class MapUVs(bpy.types.Operator):
+class MapUVs(Operator):
     """Map UVs"""
     bl_idname = "object.v_map_uvs"
     bl_label = "Map UVs"
@@ -566,8 +564,7 @@ class MapUVs(bpy.types.Operator):
                     
         return {'FINISHED'}
 
-
-class PrepExport(bpy.types.Operator):
+class PrepExport(Operator):
     """Prep for Export"""
     bl_idname = "object.v_prep_export"
     bl_label = "Prep for Export"
@@ -614,7 +611,6 @@ class PrepExport(bpy.types.Operator):
         
         return {'FINISHED'}
 
-
 ###
 
 classes = [VPipelineProperties, VPipelinePanel, SetActive, SetMetalColor,
@@ -624,7 +620,7 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     
-    bpy.types.Scene.VPipelineProps = PointerProperty(type = VPipelineProperties)
+    Scene.VPipelineProps = PointerProperty(type = VPipelineProperties)
 
 def unregister():
     for cls in classes:
